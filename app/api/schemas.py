@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.errors import AppError
+
 RunStatus = Literal["queued", "running", "succeeded", "failed"]
 TaskStatus = Literal["pending", "running", "retrying", "succeeded", "failed", "skipped"]
 
@@ -15,7 +17,7 @@ class Position(BaseModel):
 
 
 class NodeIn(BaseModel):
-    id: str
+    id: str = Field(min_length=1, max_length=36)
     name: str = Field(min_length=1, max_length=80)
     kind: str
     config: dict = {}
@@ -137,3 +139,7 @@ class ErrorBody(BaseModel):
 
 class ErrorEnvelope(BaseModel):
     error: ErrorBody
+
+class InvalidGraphError(AppError):
+    status_code = 422
+    code = "INVALID_GRAPH"

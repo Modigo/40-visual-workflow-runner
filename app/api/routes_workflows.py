@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.schemas import WorkflowCreate, WorkflowDetail, WorkflowSummary
+from app.api.schemas import GraphSaveRequest, WorkflowCreate, WorkflowDetail, WorkflowSummary
 from app.db.session import get_db
 from app.services import workflow_service
 
@@ -21,4 +21,9 @@ def list_workflows(db: Session = Depends(get_db)):
 @router.get("/{workflow_id}", response_model=WorkflowDetail)
 def get_workflow(workflow_id: str, db: Session = Depends(get_db)):
     workflow = workflow_service.get_workflow(db, workflow_id)
+    return workflow_service.workflow_to_detail(workflow)
+
+@router.put("/{workflow_id}/graph", response_model=WorkflowDetail)
+def save_graph(workflow_id: str, body: GraphSaveRequest, db: Session = Depends(get_db)):
+    workflow = workflow_service.save_graph(db, workflow_id, body)
     return workflow_service.workflow_to_detail(workflow)
