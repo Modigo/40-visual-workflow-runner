@@ -2,7 +2,8 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.api.schemas import (
-    EdgeOut, GraphSaveRequest, NodeOut, Position, WorkflowDetail, WorkflowSummary,
+    EdgeOut, GraphSaveRequest, NodeOut, Position, ValidationResponse,
+    WorkflowDetail, WorkflowSummary,
 )
 from app.db.models import Edge, Node, Workflow
 from app.errors import ConflictError, InvalidGraphError, NotFoundError
@@ -155,3 +156,14 @@ def save_graph(db: Session, workflow_id: str, request: GraphSaveRequest) -> Work
     db.commit()
     db.refresh(workflow)
     return workflow
+
+def _stub_validate(workflow: Workflow) -> ValidationResponse:
+    """TEMPORARY stand-in. Replace with Person 3's validate_graph when it exists.
+    This always says the graph is valid. It does NOT detect cycles."""
+    ordered = sorted(workflow.nodes, key=lambda n: n.sort_order)
+    return ValidationResponse(valid=True, execution_order=[n.id for n in ordered])
+
+
+def validate_workflow(db: Session, workflow_id: str) -> ValidationResponse:
+    workflow = get_workflow(db, workflow_id)
+    return _stub_validate(workflow)
