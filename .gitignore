@@ -2,12 +2,3 @@ node_modules
 .env
 __pycache__
 .DS_Store
-
-# Python
-.venv/
-*.pyc
-.pytest_cache/
-
-# Local databases
-*.db
-*.sqlite3
