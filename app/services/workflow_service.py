@@ -7,6 +7,10 @@ from app.api.schemas import (
 )
 from app.db.models import Edge, Node, Workflow
 from app.errors import ConflictError, InvalidGraphError, NotFoundError
+from app.config import ENABLE_DEMO_NODE
+from app.graph.types import EdgeDef, GraphDef, NodeDef
+from app.graph.validation import validate_graph
+from app.api.schemas import ValidationIssue
 
 
 
@@ -160,10 +164,53 @@ def save_graph(db: Session, workflow_id: str, request: GraphSaveRequest) -> Work
     return workflow
 
 def _stub_validate(workflow: Workflow) -> ValidationResponse:
-    """TEMPORARY stand-in. Replace with Person 3's validate_graph when it exists.
-    This always says the graph is valid. It does NOT detect cycles."""
-    ordered = sorted(workflow.nodes, key=lambda n: n.sort_order)
-    return ValidationResponse(valid=True, execution_order=[n.id for n in ordered])
+    """Convert the database workflow to the graph validator's input format."""
+    nodes = [
+        NodeDef(
+            id=node.id,
+            name=node.name,
+            kind=node.kind,
+            config=node.config_json,
+            sort_order=node.sort_order,
+            max_retries=node.max_retries,
+            retry_delay_seconds=node.retry_delay_seconds,
+            timeout_seconds=node.timeout_seconds,
+        )
+        for node in workflow.nodes
+    ]
+
+    edges = [
+        EdgeDef(
+            source_node_id=edge.source_node_id,
+            target_node_id=edge.target_node_id,
+        )
+        for edge in workflow.edges
+    ]
+
+    graph = GraphDef(nodes=nodes, edges=edges)
+    result = validate_graph(graph, allow_demo_node=ENABLE_DEMO_NODE)
+
+    def convert_issue(issue) -> ValidationIssue:
+        edge_ids = []
+        if issue.edge is not None:
+            for edge in issue.edge:
+                if isinstance(edge,(tuple,list)) and len(edge) == 2:
+                    source,target = edge
+                    edge_ids.append(f"{source}->{target}")
+
+        return ValidationIssue(
+            code=issue.code,
+            message=issue.message,
+            node_ids=issue.node_ids,
+            edge_ids=edge_ids,
+        )
+
+    return ValidationResponse(
+        valid=result.valid,
+        errors=[convert_issue(issue) for issue in result.errors],
+        warnings=[convert_issue(issue) for issue in result.warnings],
+        execution_order=result.execution_order,
+    )
 
 
 def validate_workflow(db: Session, workflow_id: str) -> ValidationResponse:
