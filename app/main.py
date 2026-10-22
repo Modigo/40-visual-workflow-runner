@@ -4,9 +4,11 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes_workflows import router as workflows_router
 from app.errors import AppError
+from app.api.routes_runs import router as runs_router
 
 app = FastAPI(title="Visual Workflow Runner")
 app.include_router(workflows_router)
+app.include_router(runs_router)
 
 
 @app.exception_handler(AppError)
