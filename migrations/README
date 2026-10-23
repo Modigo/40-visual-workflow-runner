@@ -1,0 +1,33 @@
+Generic single-database configuration.
+## Database setup
+
+The app uses SQLite locally (a file called `workflow_runner.db`, created automatically) and PostgreSQL for a hosted demo.
+
+Build or update your database after cloning, and again after pulling changes that add migrations:
+
+```
+alembic upgrade head
+```
+
+To start from scratch locally, delete `workflow_runner.db` and run the command again.
+
+After changing a model, create a new migration, check the generated file in `migrations/versions/`, then apply it:
+
+```
+alembic revision --autogenerate -m "describe the change"
+alembic upgrade head
+```
+
+Set `DATABASE_URL` to point at another database. See `.env.example` for the variables.
+
+### Troubleshooting
+
+If importing SQLAlchemy fails on Windows with "An Application Control policy has blocked this file", delete the compiled files inside your virtual environment and try again:
+
+```
+Get-ChildItem .venv\Lib\site-packages\sqlalchemy -Recurse -Filter *.pyd | Remove-Item
+```
+
+## API
+
+See `docs/api-examples.md` for the endpoints with example requests and responses.
