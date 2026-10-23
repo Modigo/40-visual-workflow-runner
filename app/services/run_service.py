@@ -1,3 +1,4 @@
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -12,7 +13,8 @@ def create_run(db: Session, workflow_id: str) -> WorkflowRun:
 
     if not workflow.nodes:
         raise ConflictError(
-            "A workflow needs at least one node before it can run.", code="EMPTY_GRAPH"
+            "A workflow needs at least one node before it can run.",
+            code="EMPTY_GRAPH",
         )
 
     validation = workflow_service.validate_workflow(db, workflow_id)
@@ -23,8 +25,10 @@ def create_run(db: Session, workflow_id: str) -> WorkflowRun:
             details=[issue.model_dump() for issue in validation.errors],
         )
 
-    # Freeze the graph exactly as it is now.
-    snapshot = workflow_service.workflow_to_detail(workflow).model_dump(mode="json")
+    # Freeze the workflow definition and execution order for this run.
+    snapshot = workflow_service.workflow_to_detail(workflow).model_dump(
+        mode="json"
+    )
     snapshot["execution_order"] = validation.execution_order
 
     run = WorkflowRun(
@@ -34,8 +38,9 @@ def create_run(db: Session, workflow_id: str) -> WorkflowRun:
         status="queued",
     )
     db.add(run)
-    db.flush()  # gives the run an id before we create its tasks
+    db.flush()
 
+    # Creating a run must not execute its tasks.
     for node in sorted(workflow.nodes, key=lambda n: n.sort_order):
         db.add(
             TaskRun(
@@ -59,8 +64,13 @@ def get_run(db: Session, run_id: str) -> WorkflowRun:
     return run
 
 
-def list_runs(db: Session, workflow_id: str, limit: int) -> list[WorkflowRun]:
-    workflow_service.get_workflow(db, workflow_id)  # raises 404 if missing
+def list_runs(
+    db: Session,
+    workflow_id: str,
+    limit: int,
+) -> list[WorkflowRun]:
+    workflow_service.get_workflow(db, workflow_id)
+
     stmt = (
         select(WorkflowRun)
         .where(WorkflowRun.workflow_id == workflow_id)
@@ -71,39 +81,50 @@ def list_runs(db: Session, workflow_id: str, limit: int) -> list[WorkflowRun]:
 
 
 def run_to_detail(run: WorkflowRun) -> RunDetail:
-    """Convert a database run into the API shape, with tasks in execution order."""
+    """Convert a database run to the API response in execution order."""
     order = {
-        node_id: i
-        for i, node_id in enumerate(run.workflow_snapshot_json.get("execution_order", []))
+        node_id: index
+        for index, node_id in enumerate(
+            run.workflow_snapshot_json.get("execution_order", [])
+        )
     }
+
     tasks = []
-    for t in sorted(run.tasks, key=lambda t: order.get(t.node_id, len(order))):
+    for task in sorted(
+        run.tasks,
+        key=lambda item: order.get(item.node_id, len(order)),
+    ):
         attempts = [
             AttemptOut(
-                attempt_number=a.attempt_number,
-                status=a.status,
-                error_type=a.error_type,
-                error_message=a.error_message,
-                started_at=a.started_at,
-                finished_at=a.finished_at,
+                attempt_number=attempt.attempt_number,
+                status=attempt.status,
+                error_type=attempt.error_type,
+                error_message=attempt.error_message,
+                started_at=attempt.started_at,
+                finished_at=attempt.finished_at,
             )
-            for a in sorted(t.attempts, key=lambda a: a.attempt_number)
+            for attempt in sorted(
+                task.attempts,
+                key=lambda item: item.attempt_number,
+            )
         ]
+
         tasks.append(
             TaskRunOut(
-                id=t.id,
-                node_id=t.node_id,
-                node_name=t.node_name_snapshot,
-                node_kind=t.node_kind_snapshot,
-                status=t.status,
-                attempt_count=t.attempt_count,
-                output=t.output_json,
-                error_message=t.error_message,
-                started_at=t.started_at,
-                finished_at=t.finished_at,
+                id=task.id,
+                node_id=task.node_id,
+                node_name=task.node_name_snapshot,
+                node_kind=task.node_kind_snapshot,
+                status=task.status,
+                attempt_count=task.attempt_count,
+                output=task.output_json,
+                error_message=task.error_message,
+                started_at=task.started_at,
+                finished_at=task.finished_at,
                 attempts=attempts,
             )
         )
+
     return RunDetail(
         id=run.id,
         workflow_id=run.workflow_id,
@@ -115,3 +136,4 @@ def run_to_detail(run: WorkflowRun) -> RunDetail:
         error_summary=run.error_summary,
         tasks=tasks,
     )
+

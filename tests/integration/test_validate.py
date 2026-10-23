@@ -2,7 +2,7 @@ def test_validate_existing_workflow(client):
     wf = client.post("/api/v1/workflows", json={"name": "Demo"}).json()
     node = {
         "id": "a", "name": "A", "kind": "emit_json",
-        "config": {}, "position": {"x": 0, "y": 0},
+        "config": {"value": "Hello, workflow!"}, "position": {"x": 0, "y": 0},
     }
     client.put(
         f"/api/v1/workflows/{wf['id']}/graph",
